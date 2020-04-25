@@ -1,9 +1,35 @@
+This is a fork of @nickivanov's flick-meta-export tool. Thanks for sharing @nickivanov!
+I just wrote some more on this readme, no more. 
+
+Also https://www.flickr.com/help/forum/en-us/72157711435626268/ has some hints on exiftool usage.
+Specially liked:
+Always regarded exiftool as an awesome tool, but I learned that it can reorganize images in directories constructed from EXIF tags, which makes it possible to structure local photo archives in directories as:
+
+camera-model/year/month
+
+e.g. "Canon EOS 7D\2009\10\4033316069_9206a84b49_o.jpg"
+
+This is the command, if anyone is interested.
+
+exiftool -r -d "%Y/%m" "-directory<NOMODEL/$FileModifyDate" "-directory<${model;}/$FileModifyDate" "-directory<NOMODEL/$DateTimeOriginal" "-directory<${model;}/$DateTimeOriginal" "C:\Pictures\Flickr\"
+
+Multiple similar constructs take care of missing model tag or missing DateTimeOriginal tag. Those without a camera model or without EXIF will be in NOMODEL/file-modify-date directory. 
+
+A day directory may be added with "%Y/%m/%d". 
+
+
 Flickr allows you to download your photos and metadata. Unfortunatley, the metadata
 is not stored along with the images as EXIF, XMP, IPTC or other standard format; instead
 it will be downloaded as a series of JSON files, one per image.
 
-This tool allows you to convert all these JSON files into a single CSV file according
-to the supplied mapping. The CSV file can then be used by [ExifTool](https://www.sno.phy.queensu.ca/~phil/exiftool/) to update image EXIF/XMP/whatever metadata.
+These instructions work only for a POSIX compliant shell like on macOS, linux and perhaps cygwin.
+Make sure to test it before doing a massive update on your images. 
+If you are not familiar with command line tools, perhaps it's best to stay away from this. 
+But since you found this on github, you might know what you are doing.
+
+This tool allows you to convert all these JSON files into a single CSV file according to the supplied mapping. 
+The CSV file can then be used by [ExifTool](https://www.sno.phy.queensu.ca/~phil/exiftool/) 
+to update image EXIF/XMP/whatever metadata.
 
 From the Flickr **Settings** page click **Request my Flickr data**. In a day or two you
 will receive an email with two links, one for the metadata archive and another for
@@ -13,6 +39,59 @@ Extract the two archives, which will create two directories, one containing meta
 and another containing images.
 
 The process might look like this:
+
+0. Study the content of your Downloads
+
+Before you begin you might want to study what has been downloaded from Flicr.
+When I did this, I cleaned my Downloads folder and had only the downloads for flickr.
+These instructions need to be adopted to your situation, hopefully it is understandable.
+Unzipping all files in the download directory creates some structure, this is fine.
+
+I started looking for all json files first:
+find Downloads -type file -print| xargs -I{} -n 1 echo "{}" |grep json|less
+Then looking for jpg 
+find Downloads -type file -print| xargs -I{} -n 1 echo "{}" |grep json|less
+Now there were maybe many files that are not jpg. This is how to find them
+find Downloads -type file -print| xargs -I{} -n 1 echo "{}" |grep -v json|grep -v jpg|less
+So I ended up having jpg, png mov and gif files. 
+Adding a wc -l instead of less will show the amount of files.
+The reason for having the xargs there will come next. 
+Since the script and exiftool needs everything in the same directory, 
+you could handle the update tag handling in in my case 4 steps each for a different filetype. 
+find Downloads -type file -print|grep jpg| wc -l
+
+I made a mistake and copied all json files to a photos directory, then cloned this repo,
+and thought I could move the json files there. mv *.json flickr-meta-export/, 
+but this resulted in -bash: /bin/mv: Argument list too long.
+This did the trick: find photos -type file -print|grep json| xargs -I{} -n 1 rm "{}".
+Replace rm which echo, like about, because it ruthless deletes all files.
+
+Check the command
+find Downloads -type file -print|grep photo_|grep json| xargs -I{} -n 1 echo "{}" photos/flickr-meta-export/|less
+Check the count
+find Downloads -type file -print|grep photo_|grep json| xargs -I{} -n 1 echo "{}" photos/flickr-meta-export/|wc -l
+(If there are many photos_comment json files you get a difference, but this gives some confirmation on the volume)
+Finally copy the json files to the destination
+find Downloads -type file -print|grep photo_|grep json| xargs -I{} -n 1 cp "{}" photos/flickr-meta-export/
+
+And do so for one of the media types (check the command like for json files and adjust)
+find Downloads -type file -print|grep jpg| xargs -I{} -n 1 cp "{}" photos/flickr-meta-export/
+
+For me this took quite some time so i went into the directory and used du -sch .. to see some progress.
+So I further installed glances, using pip3 install glances. Then running glances showed resource usage.
+Like io-rate on my disks: disk2 34.9M  35.6M, first read second write. 
+I had 58GB data, and did not wait for it to finish  
+
+Following the instructions below was a bit tricky since I used several different camera models and all store different tags.
+So I first need to sort all images by camera type. 
+To achieve this I needed to create a very large but simple text file for looking inside the jpg files. 
+exiftool flickr-meta-export/ > exifdata.txt where flickr-meta-export was my directory contoining all jpg's.
+Now I could look what data I had and see all the different tags for each camera model. There was no standard way of storing this meta-data.
+less exifdata.txt
+grep -e flickr-meta-export  -e Date exifdata.txt |less
+grep -e flickr-meta-export -e Make -e Model exifdata.txt |less
+
+Need to save this now and come back later. It's quite complicated because many images are missing different EXIF data, and writing this from all the json files could become a bigger mess.
 
 1. Update tag mapping (optional).
 
